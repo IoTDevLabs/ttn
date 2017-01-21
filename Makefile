@@ -2,10 +2,10 @@ SHELL = bash
 
 # Environment
 
-GIT_BRANCH = $(or $(CI_BUILD_REF_NAME) ,`git rev-parse --abbrev-ref HEAD 2>/dev/null`)
-GIT_COMMIT = $(or $(CI_BUILD_REF), `git rev-parse HEAD 2>/dev/null`)
-GIT_TAG = $(shell git describe --abbrev=0 --tags 2>/dev/null)
-BUILD_DATE = $(or $(CI_BUILD_DATE), `date -u +%Y-%m-%dT%H:%M:%SZ`)
+GIT_BRANCH = $(or $(CI_BUILD_REF_NAME), $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null))
+GIT_COMMIT = $(or $(CI_BUILD_REF), $(shell git rev-parse HEAD 2>/dev/null))
+GIT_TAG = $(shell git tag --sort=-taggerdate | head -n 1)
+BUILD_DATE = $(or $(CI_BUILD_DATE), $(shell date -u +%Y-%m-%dT%H:%M:%SZ))
 GO_PATH = $(shell echo $(GOPATH) | awk -F':' '{print $$1}')
 PARENT_DIRECTORY= $(shell dirname $(PWD))
 GO_SRC = $(shell pwd | xargs dirname | xargs dirname | xargs dirname)

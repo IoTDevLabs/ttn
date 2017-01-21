@@ -115,7 +115,7 @@ ifeq ($(GIT_BRANCH), $(GIT_TAG))
 	TTN_VERSION = $(GIT_TAG)
 	TAGS += prod
 else
-	TTN_VERSION = $(GIT_TAG)-dev
+	TTN_VERSION = $(GIT_TAG)-dev-idl
 	TAGS += dev
 endif
 

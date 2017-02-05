@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb "github.com/TheThingsNetwork/ttn/api/broker"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	pb_handler "github.com/TheThingsNetwork/ttn/api/handler"
 	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/apex/log"
 	"github.com/brocaar/lorawan"
 )
 
@@ -28,11 +29,7 @@ type challengeResponseWithHandler struct {
 var errDuplicateActivation = errors.New("Not handling duplicate activation on this gateway")
 
 func (b *broker) HandleActivation(activation *pb.DeviceActivationRequest) (res *pb.DeviceActivationResponse, err error) {
-	ctx := b.Ctx.WithFields(log.Fields{
-		"GatewayID": activation.GatewayMetadata.GatewayId,
-		"AppEUI":    *activation.AppEui,
-		"DevEUI":    *activation.DevEui,
-	})
+	ctx := b.Ctx.WithFields(fields.Get(activation))
 	start := time.Now()
 	deduplicatedActivationRequest := new(pb.DeduplicatedDeviceActivationRequest)
 	deduplicatedActivationRequest.ServerTime = start.UnixNano()
@@ -95,7 +92,7 @@ func (b *broker) HandleActivation(activation *pb.DeviceActivationRequest) (res *
 		return nil, errors.Wrap(errors.FromGRPCError(err), "NetworkServer refused to prepare activation")
 	}
 
-	ctx = ctx.WithFields(log.Fields{
+	ctx = ctx.WithFields(ttnlog.Fields{
 		"AppID": deduplicatedActivationRequest.AppId,
 		"DevID": deduplicatedActivationRequest.DevId,
 	})

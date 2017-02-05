@@ -7,14 +7,15 @@ import (
 	"sync"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	pb "github.com/TheThingsNetwork/ttn/api/gateway"
 	pb_monitor "github.com/TheThingsNetwork/ttn/api/monitor"
 	pb_router "github.com/TheThingsNetwork/ttn/api/router"
-	"github.com/apex/log"
 )
 
 // NewGateway creates a new in-memory Gateway structure
-func NewGateway(ctx log.Interface, id string) *Gateway {
+func NewGateway(ctx ttnlog.Interface, id string) *Gateway {
 	ctx = ctx.WithField("GatewayID", id)
 	gtw := &Gateway{
 		ID:          id,
@@ -42,7 +43,7 @@ type Gateway struct {
 
 	Monitors pb_monitor.Registry
 
-	Ctx log.Interface
+	Ctx ttnlog.Interface
 }
 
 func (g *Gateway) SetAuth(token string, authenticated bool) {
@@ -105,11 +106,12 @@ func (g *Gateway) HandleUplink(uplink *pb_router.UplinkMessage) (err error) {
 }
 
 func (g *Gateway) HandleDownlink(identifier string, downlink *pb_router.DownlinkMessage) (err error) {
-	ctx := g.Ctx.WithField("Identifier", identifier)
+	ctx := g.Ctx.WithField("Identifier", identifier).WithFields(fields.Get(downlink))
 	if err = g.Schedule.Schedule(identifier, downlink); err != nil {
 		ctx.WithError(err).Warn("Could not schedule downlink")
 		return err
 	}
+	ctx.Debug("Scheduled downlink")
 
 	clone := *downlink // Avoid race conditions
 	for _, monitor := range g.Monitors.GatewayClients(g.ID) {

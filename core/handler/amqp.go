@@ -4,15 +4,35 @@
 package handler
 
 import (
-	"github.com/apex/log"
-
-	"github.com/TheThingsNetwork/go-utils/log/apex"
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/amqp"
 	"github.com/TheThingsNetwork/ttn/core/types"
 )
 
+func (h *handler) assertAMQPExchange() error {
+	ch, err := h.amqpClient.(*amqp.DefaultClient).GetChannel()
+	if err != nil {
+		return err
+	}
+	err = ch.ExchangeDeclarePassive(h.amqpExchange, "topic", true, false, false, false, nil)
+	if err != nil {
+		h.Ctx.Warnf("Could not assert presence of AMQP Exchange %s, trying to create...", h.amqpExchange)
+		ch, err := h.amqpClient.(*amqp.DefaultClient).GetChannel()
+		if err != nil {
+			return err
+		}
+		err = ch.ExchangeDeclare(h.amqpExchange, "topic", true, false, false, false, nil)
+		if err != nil {
+			h.Ctx.Errorf("Could not create AMQP Exchange %s.", h.amqpExchange)
+			return err
+		}
+		h.Ctx.Infof("Created AMQP Exchange %s", h.amqpExchange)
+	}
+	return nil
+}
+
 func (h *handler) HandleAMQP(username, password, host, exchange, downlinkQueue string) error {
-	h.amqpClient = amqp.NewClient(apex.Wrap(h.Ctx), username, password, host)
+	h.amqpClient = amqp.NewClient(h.Ctx, username, password, host)
 
 	err := h.amqpClient.Connect()
 	if err != nil {
@@ -23,6 +43,10 @@ func (h *handler) HandleAMQP(username, password, host, exchange, downlinkQueue s
 			h.amqpClient.Disconnect()
 		}
 	}()
+
+	if err := h.assertAMQPExchange(); err != nil {
+		return err
+	}
 
 	h.amqpUp = make(chan *types.UplinkMessage)
 
@@ -55,7 +79,7 @@ func (h *handler) HandleAMQP(username, password, host, exchange, downlinkQueue s
 		defer publisher.Close()
 
 		for up := range h.amqpUp {
-			ctx.WithFields(log.Fields{
+			ctx.WithFields(ttnlog.Fields{
 				"DevID": up.DevID,
 				"AppID": up.AppID,
 			}).Debug("Publish Uplink")

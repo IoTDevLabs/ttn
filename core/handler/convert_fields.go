@@ -8,18 +8,18 @@ import (
 	"reflect"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
 	"github.com/TheThingsNetwork/ttn/core/handler/device"
 	"github.com/TheThingsNetwork/ttn/core/handler/functions"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
-	"github.com/apex/log"
 )
 
 // ConvertFieldsUp converts the payload to fields using payload functions
-func (h *handler) ConvertFieldsUp(ctx log.Interface, ttnUp *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, _ *device.Device) error {
+func (h *handler) ConvertFieldsUp(ctx ttnlog.Interface, _ *pb_broker.DeduplicatedUplinkMessage, appUp *types.UplinkMessage, _ *device.Device) error {
 	// Find Application
-	app, err := h.applications.Get(ttnUp.AppId)
+	app, err := h.applications.Get(appUp.AppID)
 	if err != nil {
 		return nil // Do not process if application not found
 	}
@@ -285,7 +285,7 @@ func (f *DownlinkFunctions) Process(payload map[string]interface{}, port uint8) 
 }
 
 // ConvertFieldsDown converts the fields into a payload
-func (h *handler) ConvertFieldsDown(ctx log.Interface, appDown *types.DownlinkMessage, ttnDown *pb_broker.DownlinkMessage, _ *device.Device) error {
+func (h *handler) ConvertFieldsDown(ctx ttnlog.Interface, appDown *types.DownlinkMessage, ttnDown *pb_broker.DownlinkMessage, _ *device.Device) error {
 	if appDown.PayloadFields == nil || len(appDown.PayloadFields) == 0 {
 		return nil
 	}

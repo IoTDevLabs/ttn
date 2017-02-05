@@ -6,16 +6,16 @@ package handler
 import (
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
 	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/types"
-	"github.com/apex/log"
 )
 
 func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error) {
 	appID, devID := appDownlink.AppID, appDownlink.DevID
 
-	ctx := h.Ctx.WithFields(log.Fields{
+	ctx := h.Ctx.WithFields(ttnlog.Fields{
 		"AppID": appID,
 		"DevID": devID,
 	})
@@ -48,29 +48,34 @@ func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error
 		AppID: appID,
 		DevID: devID,
 		Event: types.DownlinkScheduledEvent,
+		Data: types.DownlinkEventData{
+			Message: appDownlink,
+		},
 	}
 
 	return nil
 }
 
-func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *pb_broker.DownlinkMessage) error {
+func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *pb_broker.DownlinkMessage) (err error) {
 	appID, devID := appDownlink.AppID, appDownlink.DevID
 
-	ctx := h.Ctx.WithFields(log.Fields{
+	ctx := h.Ctx.WithFields(ttnlog.Fields{
 		"AppID":  appID,
 		"DevID":  devID,
 		"AppEUI": downlink.AppEui,
 		"DevEUI": downlink.DevEui,
 	})
 
-	var err error
 	defer func() {
 		if err != nil {
 			h.mqttEvent <- &types.DeviceEvent{
 				AppID: appID,
 				DevID: devID,
 				Event: types.DownlinkErrorEvent,
-				Data:  types.ErrorEventData{Error: err.Error()},
+				Data: types.DownlinkEventData{
+					ErrorEventData: types.ErrorEventData{Error: err.Error()},
+					Message:        appDownlink,
+				},
 			}
 			ctx.WithError(err).Warn("Could not handle downlink")
 		}
@@ -80,6 +85,13 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 	if err != nil {
 		return err
 	}
+	dev.StartUpdate()
+	defer func() {
+		setErr := h.devices.Set(dev)
+		if err == nil {
+			err = setErr
+		}
+	}()
 
 	// Get Processors
 	processors := []DownlinkProcessor{
@@ -130,6 +142,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 		Event: types.DownlinkSentEvent,
 		Data: types.DownlinkEventData{
 			Payload:   downlink.Payload,
+			Message:   appDownlink,
 			GatewayID: downlink.DownlinkOption.GatewayId,
 			Config:    downlinkConfig,
 		},

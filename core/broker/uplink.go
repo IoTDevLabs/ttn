@@ -10,22 +10,23 @@ import (
 	"sort"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb "github.com/TheThingsNetwork/ttn/api/broker"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	"github.com/TheThingsNetwork/ttn/api/networkserver"
 	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
 	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 	"github.com/TheThingsNetwork/ttn/utils/fcnt"
-	"github.com/apex/log"
 	"github.com/brocaar/lorawan"
 )
 
 const maxFCntGap = 16384
 
 func (b *broker) HandleUplink(uplink *pb.UplinkMessage) (err error) {
-	ctx := b.Ctx.WithField("GatewayID", uplink.GatewayMetadata.GatewayId)
+	ctx := b.Ctx.WithFields(fields.Get(uplink))
 	start := time.Now()
 	deduplicatedUplink := new(pb.DeduplicatedUplinkMessage)
 	deduplicatedUplink.ServerTime = start.UnixNano()
@@ -38,9 +39,11 @@ func (b *broker) HandleUplink(uplink *pb.UplinkMessage) (err error) {
 		} else {
 			ctx.WithField("Duration", time.Now().Sub(start)).Info("Handled uplink")
 		}
-		for _, monitor := range b.Monitors.BrokerClients() {
-			ctx.Debug("Sending uplink to monitor")
-			go monitor.SendUplink(deduplicatedUplink)
+		if deduplicatedUplink != nil {
+			for _, monitor := range b.Monitors.BrokerClients() {
+				ctx.Debug("Sending uplink to monitor")
+				go monitor.SendUplink(deduplicatedUplink)
+			}
 		}
 	}()
 
@@ -85,7 +88,7 @@ func (b *broker) HandleUplink(uplink *pb.UplinkMessage) (err error) {
 
 	// Request devices from NS
 	devAddr := types.DevAddr(macPayload.FHDR.DevAddr)
-	ctx = ctx.WithFields(log.Fields{
+	ctx = ctx.WithFields(ttnlog.Fields{
 		"DevAddr": devAddr,
 		"FCnt":    macPayload.FHDR.FCnt,
 	})
@@ -143,10 +146,12 @@ func (b *broker) HandleUplink(uplink *pb.UplinkMessage) (err error) {
 				}
 			}
 		}
-
+	}
+	if device == nil {
 		return errors.NewErrNotFound("device that validates MIC")
 	}
-	ctx = ctx.WithFields(log.Fields{
+
+	ctx = ctx.WithFields(ttnlog.Fields{
 		"MICChecks": micChecks,
 		"DevEUI":    device.DevEui,
 		"AppEUI":    device.AppEui,
@@ -163,13 +168,25 @@ func (b *broker) HandleUplink(uplink *pb.UplinkMessage) (err error) {
 		ctx = ctx.WithField("RealFCnt", macPayload.FHDR.FCnt)
 	}
 
-	if device.DisableFCntCheck {
-		// TODO: Add warning to message?
-	} else if device.FCntUp == 0 {
-
-	} else if macPayload.FHDR.FCnt <= device.FCntUp || macPayload.FHDR.FCnt-device.FCntUp > maxFCntGap {
-		// Replay attack or FCnt gap too big
-		return errors.NewErrNotFound("device with matching FCnt")
+	switch {
+	case macPayload.FHDR.FCnt > device.FCntUp && macPayload.FHDR.FCnt-device.FCntUp <= maxFCntGap:
+		// FCnt higher than latest and within max FCnt gap (normal case)
+	case device.DisableFCntCheck:
+		// FCnt Check disabled. Rely on MIC check only
+	case device.FCntUp == 0:
+		// FCntUp is reset. We don't know where the device will start sending.
+	case macPayload.FHDR.FCnt == device.FCntUp:
+		if phyPayload.MHDR.MType == lorawan.ConfirmedDataUp {
+			// Retry of confirmed uplink
+			break
+		}
+		fallthrough
+	case macPayload.FHDR.FCnt <= device.FCntUp:
+		return errors.NewErrInvalidArgument("FCnt", "not high enough")
+	case macPayload.FHDR.FCnt-device.FCntUp > maxFCntGap:
+		return errors.NewErrInvalidArgument("FCnt", "too high")
+	default:
+		return errors.NewErrInternal("FCnt check failed")
 	}
 
 	// Add FCnt to Metadata (because it's not marshaled in lorawan payload)

@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	pb_broker "github.com/TheThingsNetwork/ttn/api/broker"
+	"github.com/TheThingsNetwork/ttn/api/fields"
 	pb_gateway "github.com/TheThingsNetwork/ttn/api/gateway"
 	pb_protocol "github.com/TheThingsNetwork/ttn/api/protocol"
 	pb_lorawan "github.com/TheThingsNetwork/ttn/api/protocol/lorawan"
@@ -20,11 +22,10 @@ import (
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 	"github.com/TheThingsNetwork/ttn/utils/toa"
-	"github.com/apex/log"
 )
 
 func (r *router) SubscribeDownlink(gatewayID string, subscriptionID string) (<-chan *pb.DownlinkMessage, error) {
-	ctx := r.Ctx.WithFields(log.Fields{
+	ctx := r.Ctx.WithFields(ttnlog.Fields{
 		"GatewayID": gatewayID,
 	})
 
@@ -34,7 +35,7 @@ func (r *router) SubscribeDownlink(gatewayID string, subscriptionID string) (<-c
 		go func() {
 			ctx.Debug("Activate downlink")
 			for message := range fromSchedule {
-				ctx.Debug("Send downlink")
+				ctx.WithFields(fields.Get(message)).Debug("Send downlink")
 				toGateway <- message
 			}
 			ctx.Debug("Deactivate downlink")

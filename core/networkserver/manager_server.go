@@ -111,6 +111,7 @@ func (n *networkServerManager) SetDevice(ctx context.Context, in *pb_lorawan.Dev
 	dev.DevEUI = *in.DevEui
 	dev.FCntUp = in.FCntUp
 	dev.FCntDown = in.FCntDown
+	dev.ADR = device.ADRSettings{Band: dev.ADR.Band, Margin: dev.ADR.Margin}
 
 	dev.Options = device.Options{
 		DisableFCntCheck:      in.DisableFCntCheck,
@@ -124,6 +125,15 @@ func (n *networkServerManager) SetDevice(ctx context.Context, in *pb_lorawan.Dev
 	}
 
 	err = n.networkServer.devices.Set(dev)
+	if err != nil {
+		return nil, err
+	}
+
+	frames, err := n.networkServer.devices.Frames(dev.AppEUI, dev.DevEUI)
+	if err != nil {
+		return nil, err
+	}
+	err = frames.Clear()
 	if err != nil {
 		return nil, err
 	}

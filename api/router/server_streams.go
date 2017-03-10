@@ -36,10 +36,7 @@ func (s *RouterStreamServer) SetLogger(logger log.Interface) {
 
 // Uplink handles uplink streams
 func (s *RouterStreamServer) Uplink(stream Router_UplinkServer) (err error) {
-	md, err := api.MetadataFromContext(stream.Context())
-	if err != nil {
-		return err
-	}
+	md := api.MetadataFromContext(stream.Context())
 	ch, err := s.UplinkChanFunc(md)
 	if err != nil {
 		return err
@@ -65,7 +62,7 @@ func (s *RouterStreamServer) Uplink(stream Router_UplinkServer) (err error) {
 			continue
 		}
 		if err := uplink.UnmarshalPayload(); err != nil {
-			s.ctx.Warn("Could not unmarshal Uplink payload")
+			s.ctx.WithError(err).Warn("Could not unmarshal Uplink payload")
 		}
 		ch <- uplink
 	}
@@ -73,10 +70,7 @@ func (s *RouterStreamServer) Uplink(stream Router_UplinkServer) (err error) {
 
 // Subscribe handles downlink streams
 func (s *RouterStreamServer) Subscribe(req *SubscribeRequest, stream Router_SubscribeServer) (err error) {
-	md, err := api.MetadataFromContext(stream.Context())
-	if err != nil {
-		return err
-	}
+	md := api.MetadataFromContext(stream.Context())
 	ch, cancel, err := s.DownlinkChanFunc(md)
 	if err != nil {
 		return err
@@ -96,10 +90,7 @@ func (s *RouterStreamServer) Subscribe(req *SubscribeRequest, stream Router_Subs
 
 // GatewayStatus handles gateway status streams
 func (s *RouterStreamServer) GatewayStatus(stream Router_GatewayStatusServer) error {
-	md, err := api.MetadataFromContext(stream.Context())
-	if err != nil {
-		return err
-	}
+	md := api.MetadataFromContext(stream.Context())
 	ch, err := s.GatewayStatusChanFunc(md)
 	if err != nil {
 		return err

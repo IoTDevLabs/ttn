@@ -26,7 +26,7 @@ message Metadata {
   // Store the full 32 bit FCnt (deprecated; do not use)
   uint32      f_cnt = 15;
 
-  Region region     = 16;
+  FrequencyPlan frequency_plan = 16;
 }
 
 message TxConfiguration {
@@ -52,17 +52,26 @@ message ActivationMetadata {
   uint32 rx2_dr           = 12;
   uint32 rx_delay         = 13;
   CFList cf_list          = 14;
-  Region region           = 15;
+  FrequencyPlan frequency_plan = 15;
 }
 
-enum Region {
+enum FrequencyPlan {
   EU_863_870 = 0;
+
   US_902_928 = 1;
+
   CN_779_787 = 2;
+
   EU_433     = 3;
+
   AU_915_928 = 4;
+
   CN_470_510 = 5;
+
   AS_923     = 6;
+  AS_920_923 = 61;
+  AS_923_925 = 62;
+
   KR_920_923 = 7;
 }
 

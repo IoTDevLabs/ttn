@@ -19,7 +19,8 @@ import (
 	"github.com/TheThingsNetwork/go-account-lib/claims"
 	"github.com/TheThingsNetwork/go-account-lib/keys"
 	"github.com/TheThingsNetwork/go-account-lib/tokenkey"
-	"github.com/TheThingsNetwork/ttn/api"
+	api_auth "github.com/TheThingsNetwork/go-utils/grpc/auth"
+	"github.com/TheThingsNetwork/go-utils/grpc/ttnctx"
 	pb_discovery "github.com/TheThingsNetwork/ttn/api/discovery"
 	"github.com/TheThingsNetwork/ttn/api/pool"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
@@ -129,6 +130,13 @@ func (c *Component) initKeyPair() error {
 	pubPEM, _ := security.PublicPEM(priv)
 	c.Identity.PublicKey = string(pubPEM)
 
+	if c.Pool != nil {
+		c.Pool.AddDialOption(api_auth.WithTokenFunc("target-id", func(_ string) string {
+			token, _ := c.BuildJWT()
+			return token
+		}).DialOption())
+	}
+
 	return nil
 }
 
@@ -164,10 +172,13 @@ func (c *Component) initRoots() error {
 func (c *Component) initBgCtx() error {
 	ctx := context.Background()
 	if c.Identity != nil {
-		ctx = api.ContextWithID(ctx, c.Identity.Id)
-		ctx = api.ContextWithServiceInfo(ctx, c.Identity.ServiceName, c.Identity.ServiceVersion, c.Identity.NetAddress)
+		ctx = ttnctx.OutgoingContextWithID(ctx, c.Identity.Id)
+		ctx = ttnctx.OutgoingContextWithServiceInfo(ctx, c.Identity.ServiceName, c.Identity.ServiceVersion, c.Identity.NetAddress)
 	}
 	c.Context = ctx
+	if c.Pool != nil {
+		c.Pool.SetContext(c.Context)
+	}
 	return nil
 }
 
@@ -195,7 +206,7 @@ func (c *Component) GetContext(token string) context.Context {
 	if token == "" && c.Identity != nil {
 		token, _ = c.BuildJWT()
 	}
-	ctx = api.ContextWithToken(ctx, token)
+	ctx = ttnctx.OutgoingContextWithToken(ctx, token)
 	return ctx
 }
 
@@ -214,7 +225,7 @@ func (c *Component) ExchangeAppKeyForToken(appID, key string) (string, error) {
 	}
 	issuer, ok := c.Config.AuthServers[issuerID]
 	if !ok {
-		return "", fmt.Errorf("Auth server %s not registered", issuer)
+		return "", fmt.Errorf("Auth server \"%s\" not registered", issuerID)
 	}
 
 	token, err := getTokenFromCache(oauthCache, appID, key)
@@ -253,12 +264,12 @@ func (c *Component) ValidateNetworkContext(ctx context.Context) (component *pb_d
 		}
 	}()
 
-	id, err := api.IDFromContext(ctx)
+	id, err := ttnctx.IDFromIncomingContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceName, _, _, _ := api.ServiceInfoFromContext(ctx)
+	serviceName, _, _, _ := ttnctx.ServiceInfoFromIncomingContext(ctx)
 	if serviceName == "" {
 		return nil, errors.NewErrInvalidArgument("Metadata", "service-name missing")
 	}
@@ -272,7 +283,7 @@ func (c *Component) ValidateNetworkContext(ctx context.Context) (component *pb_d
 		return announcement, nil
 	}
 
-	token, err := api.TokenFromContext(ctx)
+	token, err := ttnctx.TokenFromIncomingContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +307,7 @@ func (c *Component) ValidateNetworkContext(ctx context.Context) (component *pb_d
 
 // ValidateTTNAuthContext gets a token from the context and validates it
 func (c *Component) ValidateTTNAuthContext(ctx context.Context) (*claims.Claims, error) {
-	token, err := api.TokenFromContext(ctx)
+	token, err := ttnctx.TokenFromIncomingContext(ctx)
 	if err != nil {
 		return nil, err
 	}

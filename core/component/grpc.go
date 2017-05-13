@@ -6,9 +6,8 @@ package component
 import (
 	"math"
 
-	"github.com/TheThingsNetwork/go-utils/grpc/interceptor"
-	"github.com/TheThingsNetwork/go-utils/log"
-	"github.com/TheThingsNetwork/ttn/api/fields"
+	"github.com/TheThingsNetwork/go-utils/grpc/rpclog"
+	"github.com/TheThingsNetwork/ttn/api/trace"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
 	"github.com/mwitkow/go-grpc-middleware"
 	"golang.org/x/net/context" // See https://github.com/grpc/grpc-go/issues/711"
@@ -18,9 +17,7 @@ import (
 
 func (c *Component) ServerOptions() []grpc.ServerOption {
 
-	unaryLog := interceptor.Unary(func(req interface{}, info *grpc.UnaryServerInfo) (log.Interface, string) {
-		return c.Ctx.WithFields(fields.Get(req)), "Request"
-	})
+	unaryLog := rpclog.UnaryServerInterceptor(c.Ctx)
 
 	unaryErr := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		iface, err := handler(ctx, req)
@@ -28,9 +25,7 @@ func (c *Component) ServerOptions() []grpc.ServerOption {
 		return iface, err
 	}
 
-	streamLog := interceptor.Stream(func(srv interface{}, info *grpc.StreamServerInfo) (log.Interface, string) {
-		return c.Ctx, "Stream"
-	})
+	streamLog := rpclog.StreamServerInterceptor(c.Ctx)
 
 	streamErr := func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		err := handler(srv, stream)
@@ -49,4 +44,16 @@ func (c *Component) ServerOptions() []grpc.ServerOption {
 	}
 
 	return opts
+}
+
+func init() {
+	// Disable gRPC tracing
+	// SEE: https://github.com/grpc/grpc-go/issues/695
+	grpc.EnableTracing = false
+
+	// Initialize TTN tracing
+	OnInitialize(func(c *Component) error {
+		trace.SetComponent(c.Identity.ServiceName, c.Identity.Id)
+		return nil
+	})
 }

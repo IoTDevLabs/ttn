@@ -147,8 +147,6 @@ func init() {
 
 	RootCmd.PersistentFlags().Int("health-port", 0, "The port number where the health server should be started")
 
-	RootCmd.PersistentFlags().Duration("monitor-interval", 6*time.Second, "The interval between sending component statuses to the monitor servers")
-
 	viper.SetDefault("auth-servers", map[string]string{
 		"ttn-account-v2": "https://account.thethingsnetwork.org",
 	})
@@ -167,6 +165,8 @@ func init() {
 	RootCmd.PersistentFlags().Bool("tls", true, "Use TLS")
 	RootCmd.PersistentFlags().Bool("allow-insecure", false, "Allow insecure fallback if TLS unavailable")
 	RootCmd.PersistentFlags().String("key-dir", path.Clean(dir+"/.ttn/"), "The directory where public/private keys are stored")
+
+	RootCmd.PersistentFlags().Int("eu-rx2-dr", 3, "RX2 data rate for the EU band (SF12=0,SF9=3)")
 
 	viper.BindPFlags(RootCmd.PersistentFlags())
 }

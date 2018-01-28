@@ -20,19 +20,24 @@ import (
 	. "github.com/TheThingsNetwork/ttn/utils/testing"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/assertions"
+	"github.com/spf13/viper"
 	"golang.org/x/net/context"
 )
+
+func init() {
+	viper.Set("eu-rx2-dr", "3")
+}
 
 // newReferenceDownlink returns a default uplink message
 func newReferenceDownlink() *pb.DownlinkMessage {
 	up := &pb.DownlinkMessage{
 		Payload: make([]byte, 20),
-		ProtocolConfiguration: &pb_protocol.TxConfiguration{Protocol: &pb_protocol.TxConfiguration_LoRaWAN{LoRaWAN: &pb_lorawan.TxConfiguration{
+		ProtocolConfiguration: pb_protocol.TxConfiguration{Protocol: &pb_protocol.TxConfiguration_LoRaWAN{LoRaWAN: &pb_lorawan.TxConfiguration{
 			CodingRate: "4/5",
 			DataRate:   "SF7BW125",
 			Modulation: pb_lorawan.Modulation_LORA,
 		}}},
-		GatewayConfiguration: &pb_gateway.TxConfiguration{
+		GatewayConfiguration: pb_gateway.TxConfiguration{
 			Timestamp: 100,
 			Frequency: 868100000,
 		},
@@ -61,8 +66,8 @@ func TestHandleDownlink(t *testing.T) {
 		DownlinkOption: &pb_broker.DownlinkOption{
 			GatewayID:             gtwID,
 			Identifier:            id,
-			ProtocolConfiguration: &pb_protocol.TxConfiguration{},
-			GatewayConfiguration:  &pb_gateway.TxConfiguration{},
+			ProtocolConfiguration: pb_protocol.TxConfiguration{},
+			GatewayConfiguration:  pb_gateway.TxConfiguration{},
 		},
 	})
 
@@ -115,8 +120,8 @@ func TestSubscribeUnsubscribeDownlink(t *testing.T) {
 		DownlinkOption: &pb_broker.DownlinkOption{
 			GatewayID:             gtwID,
 			Identifier:            id,
-			ProtocolConfiguration: &pb_protocol.TxConfiguration{},
-			GatewayConfiguration:  &pb_gateway.TxConfiguration{},
+			ProtocolConfiguration: pb_protocol.TxConfiguration{},
+			GatewayConfiguration:  pb_gateway.TxConfiguration{},
 		},
 	})
 

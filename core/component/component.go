@@ -6,7 +6,11 @@ package component
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha1"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 
 	pb_discovery "github.com/TheThingsNetwork/api/discovery"
@@ -74,6 +78,17 @@ func New(ctx ttnlog.Interface, serviceName string, announcedAddress string) (*Co
 
 	if err := component.InitAuth(); err != nil {
 		return nil, err
+	}
+
+	if claims, err := claims.FromToken(component.TokenKeyProvider, component.AccessToken); err == nil {
+		tokenExpiry.WithLabelValues(component.Identity.ServiceName, component.Identity.ID).Set(float64(claims.ExpiresAt))
+	}
+
+	if p, _ := pem.Decode([]byte(component.Identity.Certificate)); p != nil && p.Type == "CERTIFICATE" {
+		if cert, err := x509.ParseCertificate(p.Bytes); err == nil {
+			sum := sha1.Sum(cert.Raw)
+			certificateExpiry.WithLabelValues(hex.EncodeToString(sum[:])).Set(float64(cert.NotAfter.Unix()))
+		}
 	}
 
 	if serviceName != "discovery" && serviceName != "networkserver" {

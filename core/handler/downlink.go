@@ -7,10 +7,12 @@ import (
 	"time"
 
 	pb_broker "github.com/TheThingsNetwork/api/broker"
+	pb_lorawan "github.com/TheThingsNetwork/api/protocol/lorawan"
 	"github.com/TheThingsNetwork/api/trace"
 	ttnlog "github.com/TheThingsNetwork/go-utils/log"
 	"github.com/TheThingsNetwork/ttn/core/types"
 	"github.com/TheThingsNetwork/ttn/utils/errors"
+	"github.com/TheThingsNetwork/ttn/utils/toa"
 )
 
 func (h *handler) EnqueueDownlink(appDownlink *types.DownlinkMessage) (err error) {
@@ -161,6 +163,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 	downlink.Message = nil
 	downlink.UnmarshalPayload()
 
+	h.RegisterHandled(downlink)
 	h.status.downlink.Mark(1)
 
 	ctx.Debug("Send Downlink")
@@ -171,18 +174,20 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 
 	downlinkConfig := types.DownlinkEventConfigInfo{}
 
-	if downlink.DownlinkOption.ProtocolConfiguration != nil {
-		if lorawan := downlink.DownlinkOption.ProtocolConfiguration.GetLoRaWAN(); lorawan != nil {
-			downlinkConfig.Modulation = lorawan.Modulation.String()
-			downlinkConfig.DataRate = lorawan.DataRate
-			downlinkConfig.BitRate = uint(lorawan.BitRate)
-			downlinkConfig.FCnt = uint(lorawan.FCnt)
+	if lorawan := downlink.DownlinkOption.ProtocolConfiguration.GetLoRaWAN(); lorawan != nil {
+		downlinkConfig.Modulation = lorawan.Modulation.String()
+		downlinkConfig.DataRate = lorawan.DataRate
+		downlinkConfig.BitRate = uint(lorawan.BitRate)
+		downlinkConfig.FCnt = uint(lorawan.FCnt)
+		switch lorawan.Modulation {
+		case pb_lorawan.Modulation_LORA:
+			downlinkConfig.Airtime, _ = toa.ComputeLoRa(uint(len(downlink.Payload)), lorawan.DataRate, lorawan.CodingRate)
+		case pb_lorawan.Modulation_FSK:
+			downlinkConfig.Airtime, _ = toa.ComputeFSK(uint(len(downlink.Payload)), int(lorawan.BitRate))
 		}
 	}
-	if gateway := downlink.DownlinkOption.GatewayConfiguration; gateway != nil {
-		downlinkConfig.Frequency = uint(downlink.DownlinkOption.GatewayConfiguration.Frequency)
-		downlinkConfig.Power = int(downlink.DownlinkOption.GatewayConfiguration.Power)
-	}
+	downlinkConfig.Frequency = uint(downlink.DownlinkOption.GatewayConfiguration.Frequency)
+	downlinkConfig.Power = int(downlink.DownlinkOption.GatewayConfiguration.Power)
 
 	h.qEvent <- &types.DeviceEvent{
 		AppID: appDownlink.AppID,
@@ -192,7 +197,7 @@ func (h *handler) HandleDownlink(appDownlink *types.DownlinkMessage, downlink *p
 			Payload:   downlink.Payload,
 			Message:   appDownlink,
 			GatewayID: downlink.DownlinkOption.GatewayID,
-			Config:    downlinkConfig,
+			Config:    &downlinkConfig,
 		},
 	}
 	return nil

@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	validFor = 365 * 24 * time.Hour
+	validFor = 5 * 365 * 24 * time.Hour
 )
 
 // GenerateKeypair generates a new keypair in the given location
